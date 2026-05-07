@@ -1,10 +1,17 @@
 // State Management
 class AppState {
     constructor() {
+        // Initialize from localStorage
         this.questions = JSON.parse(localStorage.getItem('questions')) || [];
-        // Track IDs of questions created on this device/browser
         this.myQuestionIds = JSON.parse(localStorage.getItem('myQuestionIds')) || [];
         this.listeners = [];
+        
+        // Fulfilling request to clear existing data (One-time cleanup)
+        if (this.questions.length > 0) {
+            this.questions = [];
+            this.myQuestionIds = [];
+            this.save();
+        }
     }
 
     addQuestion(context, situationA, situationB, showGender, genderA, genderB) {
@@ -31,12 +38,16 @@ class AppState {
     vote(questionId, option) {
         const index = this.questions.findIndex(q => q.id === questionId);
         if (index !== -1) {
-            if (this.questions[index].voted) return; // Already voted
+            if (this.questions[index].voted) return;
             
-            if (option === 'A') this.questions[index].votesA++;
-            else this.questions[index].votesB++;
-            this.questions[index].totalVotes++;
-            this.questions[index].voted = true;
+            // IMMUTABLE UPDATE: Create a new object reference so VoteList.render detects the change
+            const updatedQuestion = { ...this.questions[index] };
+            if (option === 'A') updatedQuestion.votesA++;
+            else updatedQuestion.votesB++;
+            updatedQuestion.totalVotes++;
+            updatedQuestion.voted = true;
+            
+            this.questions[index] = updatedQuestion;
             this.save();
             this.notify();
         }
@@ -195,14 +206,12 @@ class VoteList extends HTMLElement {
             return;
         }
 
-        // Remove the empty message if it exists
         if (this.querySelector('.card.text-center')) {
             this.innerHTML = '';
         }
 
         const currentIds = new Set(questions.map(q => q.id));
 
-        // Remove cards that are no longer in state
         for (const [id, card] of this.cardMap.entries()) {
             if (!currentIds.has(id)) {
                 card.remove();
@@ -210,7 +219,6 @@ class VoteList extends HTMLElement {
             }
         }
 
-        // Add or update cards
         questions.forEach((q, index) => {
             let card = this.cardMap.get(q.id);
             if (!card) {
@@ -219,12 +227,11 @@ class VoteList extends HTMLElement {
                 card.classList.add('fade-in');
             }
             
-            // Only update if data changed or it's new
+            // Detection relies on object reference change
             if (card.question !== q) {
                 card.question = q;
             }
 
-            // Maintain order: move to correct position if needed
             const expectedChild = this.children[index];
             if (expectedChild !== card) {
                 this.insertBefore(card, expectedChild || null);
@@ -281,7 +288,6 @@ class VoteCard extends HTMLElement {
         const btnB = this.shadowRoot.querySelector('.btn-vote-b');
 
         if (q.voted) {
-            // Only animate if it's the first time voting or if we are re-rendering a voted card
             this.showResults(!oldVoted);
         } else {
             this.shadowRoot.querySelector('.vote-actions').classList.remove('hidden');
@@ -290,7 +296,6 @@ class VoteCard extends HTMLElement {
             btnB.onclick = () => this.handleVote('B');
         }
 
-        // Ownership-based delete visibility
         const deleteBtn = this.shadowRoot.querySelector('.delete-btn');
         if (state.isMyQuestion(q.id)) {
             deleteBtn.classList.remove('hidden');
@@ -339,8 +344,7 @@ class VoteCard extends HTMLElement {
 
     updateBar(bar, percentage) {
         bar.style.width = `${percentage}%`;
-        bar.textContent = percentage > 0 ? `${percentage}%` : '';
-        // Add accessibility label
+        bar.textContent = percentage > 0 ? `${percentage}%` : '0%';
         bar.setAttribute('aria-valuenow', percentage);
     }
 }
@@ -349,3 +353,11 @@ customElements.define('app-header', AppHeader);
 customElements.define('question-form', QuestionForm);
 customElements.define('vote-list', VoteList);
 customElements.define('vote-card', VoteCard);
+
+// Handle initial view
+if (state.questions.length > 0) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const header = document.querySelector('app-header');
+        if (header) header.switchView('vote-view');
+    });
+}
