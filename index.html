@@ -9,11 +9,9 @@
 </head>
 <body>
     <div id="app">
-        <!-- App Header will be injected here -->
         <app-header></app-header>
         
         <main class="container">
-            <!-- Views will be toggled here -->
             <section id="create-view" class="view">
                 <question-form></question-form>
             </section>
@@ -71,6 +69,33 @@
     </template>
 
     <template id="question-form-template">
+        <style>
+            .gender-selection {
+                display: flex;
+                gap: 0.5rem;
+                margin-top: 0.5rem;
+            }
+            .gender-btn {
+                padding: 0.3rem 0.8rem;
+                font-size: 0.8rem;
+                border-radius: 20px;
+                border: 1px solid oklch(0.9 0.02 var(--primary-hue));
+                background: var(--surface-color);
+                color: var(--text-muted);
+            }
+            .gender-btn.active {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
+            }
+            .gender-btn.secondary.active {
+                background: var(--secondary);
+                border-color: var(--secondary);
+            }
+            .hidden-feature {
+                display: none;
+            }
+        </style>
         <div class="card">
             <h2 class="mb-4">새로운 논쟁 제출</h2>
             <form id="submit-form">
@@ -78,20 +103,36 @@
                     <label for="situation-context">전체 상황 설명</label>
                     <textarea id="situation-context" rows="3" placeholder="어떤 상황에서 싸움이 일어났는지 전체적인 맥락을 적어주세요..." required></textarea>
                 </div>
+                
                 <div class="input-group">
-                    <label for="situation-a">A 입장</label>
-                    <textarea id="situation-a" rows="4" placeholder="A의 입장을 설명해주세요..." required></textarea>
-                </div>
-                <div class="input-group">
-                    <label for="situation-b">B 입장</label>
-                    <textarea id="situation-b" rows="4" placeholder="B의 입장을 설명해주세요..." required></textarea>
-                </div>
-                <div class="input-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 1rem;">
                         <input type="checkbox" id="show-gender" style="width: auto;">
                         성별 정보를 공개하시겠습니까?
                     </label>
                 </div>
+
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label for="situation-a">A 입장</label>
+                        <div id="gender-a-wrapper" class="gender-selection hidden-feature">
+                            <button type="button" class="gender-btn" data-gender="남">남</button>
+                            <button type="button" class="gender-btn" data-gender="여">여</button>
+                        </div>
+                    </div>
+                    <textarea id="situation-a" rows="4" placeholder="A의 입장을 설명해주세요..." required></textarea>
+                </div>
+
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label for="situation-b">B 입장</label>
+                        <div id="gender-b-wrapper" class="gender-selection hidden-feature">
+                            <button type="button" class="gender-btn secondary" data-gender="남">남</button>
+                            <button type="button" class="gender-btn secondary" data-gender="여">여</button>
+                        </div>
+                    </div>
+                    <textarea id="situation-b" rows="4" placeholder="B의 입장을 설명해주세요..." required></textarea>
+                </div>
+
                 <button type="submit" class="btn btn-primary" style="width: 100%;">판결 요청하기</button>
             </form>
         </div>
@@ -104,6 +145,7 @@
                 flex-direction: column;
                 gap: 1.5rem;
                 margin-bottom: 2rem;
+                position: relative;
             }
             .context-box {
                 padding: 1rem;
@@ -118,6 +160,7 @@
                 border-radius: var(--border-radius-sm);
                 background: var(--bg-color);
                 border-left: 4px solid var(--primary);
+                position: relative;
             }
             .situation.b {
                 border-left-color: var(--secondary);
@@ -127,7 +170,20 @@
                 font-size: 0.8rem;
                 text-transform: uppercase;
                 margin-bottom: 0.5rem;
-                display: block;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .gender-tag {
+                font-size: 0.7rem;
+                padding: 0.1rem 0.5rem;
+                background: oklch(0.6 0.18 var(--primary-hue) / 0.1);
+                color: var(--primary);
+                border-radius: 10px;
+            }
+            .situation.b .gender-tag {
+                background: oklch(0.65 0.22 var(--secondary-hue) / 0.1);
+                color: var(--secondary);
             }
             .vote-actions {
                 display: grid;
@@ -159,10 +215,23 @@
             .bar-a { background: var(--primary); }
             .bar-b { background: var(--secondary); justify-content: flex-end; }
             
-            .gender-info {
+            .card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
                 font-size: 0.8rem;
-                color: var(--text-muted);
-                text-align: right;
+            }
+            .delete-btn {
+                background: transparent;
+                color: var(--danger);
+                font-weight: 600;
+                padding: 0.2rem 0.5rem;
+                opacity: 0.6;
+            }
+            .delete-btn:hover {
+                opacity: 1;
+                background: oklch(0.6 0.2 20 / 0.1);
+                border-radius: 4px;
             }
 
             @keyframes fadeIn {
@@ -171,17 +240,26 @@
             }
         </style>
         <div class="card vote-card">
-            <div class="gender-info"></div>
+            <div class="card-header">
+                <span class="gender-info"></span>
+                <button class="delete-btn">삭제</button>
+            </div>
             <div class="context-box">
                 <span class="situation-label">사건 개요</span>
                 <p class="text-context"></p>
             </div>
             <div class="situation a">
-                <span class="situation-label">입장 A</span>
+                <span class="situation-label">
+                    입장 A
+                    <span class="gender-tag tag-a hidden"></span>
+                </span>
                 <p class="text-a"></p>
             </div>
             <div class="situation b">
-                <span class="situation-label">입장 B</span>
+                <span class="situation-label">
+                    입장 B
+                    <span class="gender-tag tag-b hidden"></span>
+                </span>
                 <p class="text-b"></p>
             </div>
             <div class="vote-actions">

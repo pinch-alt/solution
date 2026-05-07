@@ -5,13 +5,15 @@ class AppState {
         this.listeners = [];
     }
 
-    addQuestion(context, situationA, situationB, showGender) {
+    addQuestion(context, situationA, situationB, showGender, genderA, genderB) {
         const newQuestion = {
             id: crypto.randomUUID(),
             context,
             situationA,
             situationB,
             showGender,
+            genderA,
+            genderB,
             votesA: 0,
             votesB: 0,
             totalVotes: 0,
@@ -33,6 +35,12 @@ class AppState {
             this.save();
             this.notify();
         }
+    }
+
+    deleteQuestion(questionId) {
+        this.questions = this.questions.filter(q => q.id !== questionId);
+        this.save();
+        this.notify();
     }
 
     save() {
@@ -91,19 +99,62 @@ class QuestionForm extends HTMLElement {
         styleLink.setAttribute('href', 'style.css');
         this.shadowRoot.appendChild(styleLink);
         this.shadowRoot.appendChild(template.content.cloneNode(true));
+        
+        this.genderA = null;
+        this.genderB = null;
     }
 
     connectedCallback() {
+        const showGenderCheckbox = this.shadowRoot.getElementById('show-gender');
+        const wrapperA = this.shadowRoot.getElementById('gender-a-wrapper');
+        const wrapperB = this.shadowRoot.getElementById('gender-b-wrapper');
+
+        showGenderCheckbox.addEventListener('change', () => {
+            if (showGenderCheckbox.checked) {
+                wrapperA.classList.remove('hidden-feature');
+                wrapperB.classList.remove('hidden-feature');
+            } else {
+                wrapperA.classList.add('hidden-feature');
+                wrapperB.classList.add('hidden-feature');
+                this.genderA = null;
+                this.genderB = null;
+                this.shadowRoot.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+            }
+        });
+
+        this.shadowRoot.querySelectorAll('.gender-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const isPartyA = btn.parentElement.id === 'gender-a-wrapper';
+                const gender = btn.dataset.gender;
+
+                btn.parentElement.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                if (isPartyA) this.genderA = gender;
+                else this.genderB = gender;
+            });
+        });
+
         this.shadowRoot.getElementById('submit-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const context = this.shadowRoot.getElementById('situation-context').value;
             const situationA = this.shadowRoot.getElementById('situation-a').value;
             const situationB = this.shadowRoot.getElementById('situation-b').value;
-            const showGender = this.shadowRoot.getElementById('show-gender').checked;
+            const showGender = showGenderCheckbox.checked;
 
-            state.addQuestion(context, situationA, situationB, showGender);
+            if (showGender && (!this.genderA || !this.genderB)) {
+                alert('A와 B의 성별을 모두 선택해주세요!');
+                return;
+            }
+
+            state.addQuestion(context, situationA, situationB, showGender, this.genderA, this.genderB);
             
             this.shadowRoot.getElementById('submit-form').reset();
+            this.genderA = null;
+            this.genderB = null;
+            this.shadowRoot.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+            wrapperA.classList.add('hidden-feature');
+            wrapperB.classList.add('hidden-feature');
             
             document.querySelector('app-header').switchView('vote-view');
             const navBtn = document.querySelector('app-header').shadowRoot.querySelector('[data-view="vote-view"]');
@@ -162,6 +213,16 @@ class VoteCard extends HTMLElement {
         this.shadowRoot.querySelector('.text-b').textContent = q.situationB;
         this.shadowRoot.querySelector('.gender-info').textContent = q.showGender ? '성별 정보 공개됨' : '익명';
 
+        const tagA = this.shadowRoot.querySelector('.tag-a');
+        const tagB = this.shadowRoot.querySelector('.tag-b');
+
+        if (q.showGender) {
+            tagA.textContent = q.genderA;
+            tagA.classList.remove('hidden');
+            tagB.textContent = q.genderB;
+            tagB.classList.remove('hidden');
+        }
+
         const btnA = this.shadowRoot.querySelector('.btn-vote-a');
         const btnB = this.shadowRoot.querySelector('.btn-vote-b');
 
@@ -171,6 +232,12 @@ class VoteCard extends HTMLElement {
             btnA.onclick = () => this.handleVote('A');
             btnB.onclick = () => this.handleVote('B');
         }
+
+        this.shadowRoot.querySelector('.delete-btn').onclick = () => {
+            if (confirm('이 질문을 정말 삭제하시겠습니까?')) {
+                state.deleteQuestion(q.id);
+            }
+        };
     }
 
     handleVote(option) {
