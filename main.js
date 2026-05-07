@@ -5,9 +5,10 @@ class AppState {
         this.listeners = [];
     }
 
-    addQuestion(situationA, situationB, showGender) {
+    addQuestion(context, situationA, situationB, showGender) {
         const newQuestion = {
             id: crypto.randomUUID(),
+            context,
             situationA,
             situationB,
             showGender,
@@ -15,7 +16,7 @@ class AppState {
             votesB: 0,
             totalVotes: 0,
             createdAt: new Date().toISOString(),
-            voted: false // Track if the current user voted on this (local only for now)
+            voted: false
         };
         this.questions.unshift(newQuestion);
         this.save();
@@ -85,7 +86,6 @@ class QuestionForm extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
         const template = document.getElementById('question-form-template');
-        // Inject global styles into shadow DOM (simplification for this example)
         const styleLink = document.createElement('link');
         styleLink.setAttribute('rel', 'stylesheet');
         styleLink.setAttribute('href', 'style.css');
@@ -96,18 +96,18 @@ class QuestionForm extends HTMLElement {
     connectedCallback() {
         this.shadowRoot.getElementById('submit-form').addEventListener('submit', (e) => {
             e.preventDefault();
+            const context = this.shadowRoot.getElementById('situation-context').value;
             const situationA = this.shadowRoot.getElementById('situation-a').value;
             const situationB = this.shadowRoot.getElementById('situation-b').value;
             const showGender = this.shadowRoot.getElementById('show-gender').checked;
 
-            state.addQuestion(situationA, situationB, showGender);
+            state.addQuestion(context, situationA, situationB, showGender);
             
-            // Reset form
             this.shadowRoot.getElementById('submit-form').reset();
             
-            // Switch to vote view
             document.querySelector('app-header').switchView('vote-view');
-            document.querySelector('app-header').shadowRoot.querySelector('[data-view="vote-view"]').click();
+            const navBtn = document.querySelector('app-header').shadowRoot.querySelector('[data-view="vote-view"]');
+            navBtn.click();
         });
     }
 }
@@ -131,7 +131,8 @@ class VoteList extends HTMLElement {
 
         state.questions.forEach(q => {
             const card = document.createElement('vote-card');
-            card.question = q; card.classList.add('fade-in');
+            card.question = q;
+            card.classList.add('fade-in');
             this.appendChild(card);
         });
     }
@@ -156,13 +157,13 @@ class VoteCard extends HTMLElement {
 
     render() {
         const q = this._question;
+        this.shadowRoot.querySelector('.text-context').textContent = q.context || '상황 설명 없음';
         this.shadowRoot.querySelector('.text-a').textContent = q.situationA;
         this.shadowRoot.querySelector('.text-b').textContent = q.situationB;
         this.shadowRoot.querySelector('.gender-info').textContent = q.showGender ? '성별 정보 공개됨' : '익명';
 
         const btnA = this.shadowRoot.querySelector('.btn-vote-a');
         const btnB = this.shadowRoot.querySelector('.btn-vote-b');
-        const results = this.shadowRoot.querySelector('.results-container');
 
         if (q.voted) {
             this.showResults();
@@ -191,7 +192,6 @@ class VoteCard extends HTMLElement {
         const barA = this.shadowRoot.querySelector('.bar-a');
         const barB = this.shadowRoot.querySelector('.bar-b');
         
-        // Timeout to ensure animation triggers after becoming visible
         setTimeout(() => {
             barA.style.width = `${percA}%`;
             barA.textContent = `${percA}%`;

@@ -75,12 +75,16 @@
             <h2 class="mb-4">새로운 논쟁 제출</h2>
             <form id="submit-form">
                 <div class="input-group">
-                    <label for="situation-a">상황 A (내 입장)</label>
-                    <textarea id="situation-a" rows="4" placeholder="당신의 입장을 설명해주세요..." required></textarea>
+                    <label for="situation-context">전체 상황 설명</label>
+                    <textarea id="situation-context" rows="3" placeholder="어떤 상황에서 싸움이 일어났는지 전체적인 맥락을 적어주세요..." required></textarea>
                 </div>
                 <div class="input-group">
-                    <label for="situation-b">상황 B (상대방 입장)</label>
-                    <textarea id="situation-b" rows="4" placeholder="상대방의 입장을 설명해주세요..." required></textarea>
+                    <label for="situation-a">A 입장</label>
+                    <textarea id="situation-a" rows="4" placeholder="A의 입장을 설명해주세요..." required></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="situation-b">B 입장</label>
+                    <textarea id="situation-b" rows="4" placeholder="B의 입장을 설명해주세요..." required></textarea>
                 </div>
                 <div class="input-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -100,6 +104,14 @@
                 flex-direction: column;
                 gap: 1.5rem;
                 margin-bottom: 2rem;
+            }
+            .context-box {
+                padding: 1rem;
+                background: oklch(0.95 0.01 var(--primary-hue));
+                border-radius: var(--border-radius-sm);
+                font-size: 0.95rem;
+                border: 1px dashed oklch(0.8 0.05 var(--primary-hue));
+                color: var(--text-color);
             }
             .situation {
                 padding: 1.5rem;
@@ -160,6 +172,10 @@
         </style>
         <div class="card vote-card">
             <div class="gender-info"></div>
+            <div class="context-box">
+                <span class="situation-label">사건 개요</span>
+                <p class="text-context"></p>
+            </div>
             <div class="situation a">
                 <span class="situation-label">입장 A</span>
                 <p class="text-a"></p>
