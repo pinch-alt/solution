@@ -116,6 +116,36 @@
     transform: translateY(-2px);
   }
 
+  /* Gender Selection Buttons */
+  .gender-btn {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 20px;
+    border: 1px solid oklch(0.9 0.02 var(--primary-hue));
+    background: var(--surface-color);
+    color: var(--text-muted);
+    font-weight: 600;
+    transition: var(--transition-base);
+  }
+
+  .gender-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .gender-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 0 10px oklch(0.6 0.18 var(--primary-hue) / 0.3);
+  }
+
+  .gender-btn.secondary.active {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    box-shadow: 0 0 10px oklch(0.65 0.22 var(--secondary-hue) / 0.3);
+  }
+
   .input-group {
     display: flex;
     flex-direction: column;

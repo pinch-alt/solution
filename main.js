@@ -28,6 +28,8 @@ class AppState {
     vote(questionId, option) {
         const index = this.questions.findIndex(q => q.id === questionId);
         if (index !== -1) {
+            if (this.questions[index].voted) return; // Already voted
+            
             if (option === 'A') this.questions[index].votesA++;
             else this.questions[index].votesB++;
             this.questions[index].totalVotes++;
@@ -70,21 +72,26 @@ class AppHeader extends HTMLElement {
     connectedCallback() {
         this.shadowRoot.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const viewId = e.target.dataset.view;
+                const viewId = e.currentTarget.dataset.view;
                 this.switchView(viewId);
-                
-                this.shadowRoot.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
             });
         });
     }
 
     switchView(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-        document.getElementById(viewId).classList.remove('hidden');
+        const targetView = document.getElementById(viewId);
+        if (targetView) targetView.classList.remove('hidden');
         
+        this.shadowRoot.querySelectorAll('.nav-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.view === viewId);
+        });
+
         if (viewId === 'vote-view') {
-            document.querySelector('vote-list').render();
+            const voteList = document.querySelector('vote-list');
+            if (voteList && typeof voteList.render === 'function') {
+                voteList.render();
+            }
         }
     }
 }
@@ -110,12 +117,10 @@ class QuestionForm extends HTMLElement {
         const wrapperB = this.shadowRoot.getElementById('gender-b-wrapper');
 
         showGenderCheckbox.addEventListener('change', () => {
-            if (showGenderCheckbox.checked) {
-                wrapperA.classList.remove('hidden-feature');
-                wrapperB.classList.remove('hidden-feature');
-            } else {
-                wrapperA.classList.add('hidden-feature');
-                wrapperB.classList.add('hidden-feature');
+            const isChecked = showGenderCheckbox.checked;
+            wrapperA.classList.toggle('hidden-feature', !isChecked);
+            wrapperB.classList.toggle('hidden-feature', !isChecked);
+            if (!isChecked) {
                 this.genderA = null;
                 this.genderB = null;
                 this.shadowRoot.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
@@ -157,8 +162,6 @@ class QuestionForm extends HTMLElement {
             wrapperB.classList.add('hidden-feature');
             
             document.querySelector('app-header').switchView('vote-view');
-            const navBtn = document.querySelector('app-header').shadowRoot.querySelector('[data-view="vote-view"]');
-            navBtn.click();
         });
     }
 }
@@ -166,6 +169,7 @@ class QuestionForm extends HTMLElement {
 class VoteList extends HTMLElement {
     constructor() {
         super();
+        this.cardMap = new Map();
     }
 
     connectedCallback() {
@@ -174,25 +178,61 @@ class VoteList extends HTMLElement {
     }
 
     render() {
-        this.innerHTML = '';
-        if (state.questions.length === 0) {
+        const questions = state.questions;
+        
+        if (questions.length === 0) {
             this.innerHTML = '<div class="card text-center"><p>아직 등록된 질문이 없습니다. 첫 번째 질문을 남겨보세요!</p></div>';
+            this.cardMap.clear();
             return;
         }
 
-        state.questions.forEach(q => {
-            const card = document.createElement('vote-card');
-            card.question = q;
-            card.classList.add('fade-in');
-            this.appendChild(card);
+        // Remove the empty message if it exists
+        if (this.querySelector('.card.text-center')) {
+            this.innerHTML = '';
+        }
+
+        const currentIds = new Set(questions.map(q => q.id));
+
+        // Remove cards that are no longer in state
+        for (const [id, card] of this.cardMap.entries()) {
+            if (!currentIds.has(id)) {
+                card.remove();
+                this.cardMap.delete(id);
+            }
+        }
+
+        // Add or update cards
+        questions.forEach((q, index) => {
+            let card = this.cardMap.get(q.id);
+            if (!card) {
+                card = document.createElement('vote-card');
+                this.cardMap.set(q.id, card);
+                card.classList.add('fade-in');
+            }
+            
+            // Only update if data changed or it's new
+            if (card.question !== q) {
+                card.question = q;
+            }
+
+            // Maintain order: move to correct position if needed
+            const expectedChild = this.children[index];
+            if (expectedChild !== card) {
+                this.insertBefore(card, expectedChild || null);
+            }
         });
     }
 }
 
 class VoteCard extends HTMLElement {
+    get question() {
+        return this._question;
+    }
+
     set question(val) {
+        const oldVoted = this._question?.voted;
         this._question = val;
-        this.render();
+        this.render(oldVoted);
     }
 
     constructor() {
@@ -206,8 +246,10 @@ class VoteCard extends HTMLElement {
         this.shadowRoot.appendChild(template.content.cloneNode(true));
     }
 
-    render() {
+    render(oldVoted = false) {
         const q = this._question;
+        if (!q) return;
+
         this.shadowRoot.querySelector('.text-context').textContent = q.context || '상황 설명 없음';
         this.shadowRoot.querySelector('.text-a').textContent = q.situationA;
         this.shadowRoot.querySelector('.text-b').textContent = q.situationB;
@@ -221,14 +263,20 @@ class VoteCard extends HTMLElement {
             tagA.classList.remove('hidden');
             tagB.textContent = q.genderB;
             tagB.classList.remove('hidden');
+        } else {
+            tagA.classList.add('hidden');
+            tagB.classList.add('hidden');
         }
 
         const btnA = this.shadowRoot.querySelector('.btn-vote-a');
         const btnB = this.shadowRoot.querySelector('.btn-vote-b');
 
         if (q.voted) {
-            this.showResults();
+            // Only animate if it's the first time voting or if we are re-rendering a voted card
+            this.showResults(!oldVoted);
         } else {
+            this.shadowRoot.querySelector('.vote-actions').classList.remove('hidden');
+            this.shadowRoot.querySelector('.results-container').classList.add('hidden');
             btnA.onclick = () => this.handleVote('A');
             btnB.onclick = () => this.handleVote('B');
         }
@@ -242,10 +290,9 @@ class VoteCard extends HTMLElement {
 
     handleVote(option) {
         state.vote(this._question.id, option);
-        this.showResults();
     }
 
-    showResults() {
+    showResults(animate = true) {
         const q = this._question;
         const results = this.shadowRoot.querySelector('.results-container');
         const actions = this.shadowRoot.querySelector('.vote-actions');
@@ -259,14 +306,26 @@ class VoteCard extends HTMLElement {
         const barA = this.shadowRoot.querySelector('.bar-a');
         const barB = this.shadowRoot.querySelector('.bar-b');
         
-        setTimeout(() => {
-            barA.style.width = `${percA}%`;
-            barA.textContent = `${percA}%`;
-            barB.style.width = `${percB}%`;
-            barB.textContent = `${percB}%`;
-        }, 50);
+        if (animate) {
+            barA.style.width = '0%';
+            barB.style.width = '0%';
+            setTimeout(() => {
+                this.updateBar(barA, percA);
+                this.updateBar(barB, percB);
+            }, 50);
+        } else {
+            this.updateBar(barA, percA);
+            this.updateBar(barB, percB);
+        }
 
         this.shadowRoot.querySelector('.total-votes-text').textContent = `총 투표 수: ${q.totalVotes}`;
+    }
+
+    updateBar(bar, percentage) {
+        bar.style.width = `${percentage}%`;
+        bar.textContent = percentage > 0 ? `${percentage}%` : '';
+        // Add accessibility label
+        bar.setAttribute('aria-valuenow', percentage);
     }
 }
 
