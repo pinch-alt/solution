@@ -2,6 +2,8 @@
 class AppState {
     constructor() {
         this.questions = JSON.parse(localStorage.getItem('questions')) || [];
+        // Track IDs of questions created on this device/browser
+        this.myQuestionIds = JSON.parse(localStorage.getItem('myQuestionIds')) || [];
         this.listeners = [];
     }
 
@@ -21,6 +23,7 @@ class AppState {
             voted: false
         };
         this.questions.unshift(newQuestion);
+        this.myQuestionIds.push(newQuestion.id);
         this.save();
         this.notify();
     }
@@ -41,12 +44,18 @@ class AppState {
 
     deleteQuestion(questionId) {
         this.questions = this.questions.filter(q => q.id !== questionId);
+        this.myQuestionIds = this.myQuestionIds.filter(id => id !== questionId);
         this.save();
         this.notify();
     }
 
+    isMyQuestion(questionId) {
+        return this.myQuestionIds.includes(questionId);
+    }
+
     save() {
         localStorage.setItem('questions', JSON.stringify(this.questions));
+        localStorage.setItem('myQuestionIds', JSON.stringify(this.myQuestionIds));
     }
 
     subscribe(listener) {
@@ -281,11 +290,18 @@ class VoteCard extends HTMLElement {
             btnB.onclick = () => this.handleVote('B');
         }
 
-        this.shadowRoot.querySelector('.delete-btn').onclick = () => {
-            if (confirm('이 질문을 정말 삭제하시겠습니까?')) {
-                state.deleteQuestion(q.id);
-            }
-        };
+        // Ownership-based delete visibility
+        const deleteBtn = this.shadowRoot.querySelector('.delete-btn');
+        if (state.isMyQuestion(q.id)) {
+            deleteBtn.classList.remove('hidden');
+            deleteBtn.onclick = () => {
+                if (confirm('이 질문을 정말 삭제하시겠습니까?')) {
+                    state.deleteQuestion(q.id);
+                }
+            };
+        } else {
+            deleteBtn.classList.add('hidden');
+        }
     }
 
     handleVote(option) {
